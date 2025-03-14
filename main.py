@@ -65,7 +65,7 @@ def filter_model_response(response: str) -> str:
 # Then modify your generate_text_summary function:
 def generate_text_summary(text: str, target_language: str) -> str:
     """Generate a summary using the text model"""
-    prompt = f"Please, in the language {target_language}, summarize the following text concisely:\n\n{text}"
+    prompt = f"Please summarize the following text concisely. The summary must be in the language {target_language}.\n\n{text}"
 
     payload = {
         "model": TEXT_MODEL,
@@ -101,7 +101,7 @@ def generate_image_summary(image_path: str, target_language: str) -> str:
         # Prepare the payload for LLaVA
         payload = {
             "model": LLAVA_MODEL,
-            "prompt": f"Please describe this image in detail and summarize its key elements in the language {target_language}:",
+            "prompt": f"Please describe this image in detail and summarize its key elements. The description must be in the language {target_language}.",
             "images": [image_base64],  # Send as base64 string
             "stream": False,
         }
