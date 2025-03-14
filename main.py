@@ -75,16 +75,22 @@ def generate_text_summary(text: str) -> str:
 
 def generate_image_summary(image_path: str) -> str:
     """Generate a summary of an image using LLaVA"""
-    prompt = "Please describe this image in detail and summarize its key elements."
-
-    payload = {
-        "model": LLAVA_MODEL,
-        "prompt": prompt,
-        "images": [image_path],
-        "stream": False,
-    }
-
     try:
+        # Read the image file as base64
+        with open(image_path, "rb") as img_file:
+            import base64
+
+            image_base64 = base64.b64encode(img_file.read()).decode("utf-8")
+
+        # Prepare the payload for LLaVA
+        payload = {
+            "model": LLAVA_MODEL,
+            "prompt": "Please describe this image in detail and summarize its key elements.",
+            "images": [image_base64],  # Send as base64 string
+            "stream": False,
+        }
+
+        # Send to Ollama API
         response = requests.post(OLLAMA_API_URL, json=payload)
         response.raise_for_status()
         result = response.json()
@@ -93,6 +99,12 @@ def generate_image_summary(image_path: str) -> str:
         logger.error(f"Error generating image summary: {e}")
         raise HTTPException(
             status_code=500, detail=f"Error generating image summary: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during image processing: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error during image processing: {str(e)}",
         )
 
 
@@ -114,33 +126,81 @@ def extract_text_from_pdf(pdf_path: str) -> str:
 def transcribe_audio(audio_path: str) -> str:
     """Transcribe audio using Whisper"""
     try:
-        # Run whisper command
-        result = subprocess.run(
-            ["whisper", audio_path, "--model", "base"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        import shutil
 
-        # Get the output file (same name but .txt extension)
-        txt_path = os.path.splitext(audio_path)[0] + ".txt"
+        # Check if ffmpeg is installed
+        ffmpeg_path = shutil.which("ffmpeg")
+        if not ffmpeg_path:
+            logger.warning("ffmpeg not found in system PATH")
+            # Try common installation paths
+            for possible_path in [
+                "/usr/bin/ffmpeg",
+                "/usr/local/bin/ffmpeg",
+                "/opt/homebrew/bin/ffmpeg",
+            ]:
+                if os.path.exists(possible_path):
+                    ffmpeg_path = possible_path
+                    break
 
-        if os.path.exists(txt_path):
-            with open(txt_path, "r") as f:
-                transcript = f.read()
-            return transcript
-        else:
-            return result.stdout
-    except subprocess.CalledProcessError as e:
+            if not ffmpeg_path:
+                raise Exception(
+                    "ffmpeg not found. Please install ffmpeg and ensure it's in your PATH."
+                )
+
+        logger.info(f"Using ffmpeg at: {ffmpeg_path}")
+
+        # Convert audio to WAV format if it's not already (Whisper works best with WAV)
+        file_name, file_ext = os.path.splitext(audio_path)
+        wav_path = f"{file_name}.wav"
+
+        if file_ext.lower() not in [".wav"]:
+            # Convert to WAV using ffmpeg
+            convert_cmd = [
+                ffmpeg_path,
+                "-i",
+                audio_path,
+                "-ar",
+                "16000",  # 16kHz sample rate (recommended for Whisper)
+                "-ac",
+                "1",  # mono
+                "-c:a",
+                "pcm_s16le",  # 16-bit PCM
+                "-y",  # overwrite output file
+                wav_path,
+            ]
+
+            logger.info(f"Converting audio to WAV format: {' '.join(convert_cmd)}")
+            conversion_result = subprocess.run(
+                convert_cmd, capture_output=True, text=True
+            )
+
+            if conversion_result.returncode != 0:
+                logger.error(f"Audio conversion failed: {conversion_result.stderr}")
+                raise Exception(
+                    f"Failed to convert audio file: {conversion_result.stderr}"
+                )
+
+            logger.info("Audio conversion successful")
+            audio_path = wav_path
+
+        # Use a simpler approach with OpenAI's Whisper Python package
+        import whisper
+
+        logger.info("Loading Whisper model")
+        model = whisper.load_model("base")
+
+        logger.info(f"Transcribing audio file: {audio_path}")
+        result = model.transcribe(audio_path)
+
+        # The transcript is in the 'text' field of the result
+        transcript = result["text"]
+        logger.info(f"Transcription successful: {len(transcript)} characters")
+
+        return transcript
+    except Exception as e:
         logger.error(f"Error transcribing audio: {e}")
         raise HTTPException(
             status_code=500, detail=f"Error transcribing audio: {str(e)}"
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error during audio transcription: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error during audio transcription: {str(e)}",
         )
 
 

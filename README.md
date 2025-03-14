@@ -1,5 +1,13 @@
 # [synthia-api](https://github.com/pa-tiq/synthia-api)
 
+## Install FFMPEG
+
+Linux:
+
+```bash
+sudo apt-get install ffmpeg
+```
+
 ## Run models with Ollama
 
 1. [Install ollama](https://ollama.com/download)
