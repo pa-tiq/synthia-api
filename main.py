@@ -10,6 +10,8 @@ from typing import Optional
 import subprocess
 import fitz  # PyMuPDF
 from pydantic import BaseModel
+import time
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -61,9 +63,9 @@ def filter_model_response(response: str) -> str:
 
 
 # Then modify your generate_text_summary function:
-def generate_text_summary(text: str) -> str:
+def generate_text_summary(text: str, target_language: str) -> str:
     """Generate a summary using the text model"""
-    prompt = f"Please summarize the following text concisely:\n\n{text}"
+    prompt = f"Please, in the language {target_language}, summarize the following text concisely:\n\n{text}"
 
     payload = {
         "model": TEXT_MODEL,
@@ -87,7 +89,7 @@ def generate_text_summary(text: str) -> str:
         )
 
 
-def generate_image_summary(image_path: str) -> str:
+def generate_image_summary(image_path: str, target_language: str) -> str:
     """Generate a summary of an image using LLaVA"""
     try:
         # Read the image file as base64
@@ -99,7 +101,7 @@ def generate_image_summary(image_path: str) -> str:
         # Prepare the payload for LLaVA
         payload = {
             "model": LLAVA_MODEL,
-            "prompt": "Please describe this image in detail and summarize its key elements.",
+            "prompt": f"Please describe this image in detail and summarize its key elements in the language {target_language}:",
             "images": [image_base64],  # Send as base64 string
             "stream": False,
         }
@@ -107,6 +109,7 @@ def generate_image_summary(image_path: str) -> str:
         # Send to Ollama API
         response = requests.post(OLLAMA_API_URL, json=payload)
         response.raise_for_status()
+        logger.debug(f"Image summary: {response}")
         result = response.json()
         return result.get("response", "")
     except requests.exceptions.RequestException as e:
@@ -138,9 +141,19 @@ def extract_text_from_pdf(pdf_path: str) -> str:
 
 
 def transcribe_audio(audio_path: str) -> str:
-    """Transcribe audio using Whisper"""
+    """Transcribe audio using Whisper with centralized temp directory"""
     try:
         import shutil
+
+        # Create a dedicated temp directory if it doesn't exist
+        temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp")
+        os.makedirs(temp_dir, exist_ok=True)
+
+        # Get unique filename for this transcription
+        file_basename = os.path.basename(audio_path)
+        file_name, file_ext = os.path.splitext(file_basename)
+        unique_id = f"{file_name}_{int(time.time())}"
+        temp_wav_path = os.path.join(temp_dir, f"{unique_id}.wav")
 
         # Check if ffmpeg is installed
         ffmpeg_path = shutil.which("ffmpeg")
@@ -164,9 +177,6 @@ def transcribe_audio(audio_path: str) -> str:
         logger.info(f"Using ffmpeg at: {ffmpeg_path}")
 
         # Convert audio to WAV format if it's not already (Whisper works best with WAV)
-        file_name, file_ext = os.path.splitext(audio_path)
-        wav_path = f"{file_name}.wav"
-
         if file_ext.lower() not in [".wav"]:
             # Convert to WAV using ffmpeg
             convert_cmd = [
@@ -180,7 +190,7 @@ def transcribe_audio(audio_path: str) -> str:
                 "-c:a",
                 "pcm_s16le",  # 16-bit PCM
                 "-y",  # overwrite output file
-                wav_path,
+                temp_wav_path,
             ]
 
             logger.info(f"Converting audio to WAV format: {' '.join(convert_cmd)}")
@@ -195,20 +205,31 @@ def transcribe_audio(audio_path: str) -> str:
                 )
 
             logger.info("Audio conversion successful")
-            audio_path = wav_path
+            processed_audio_path = temp_wav_path
+        else:
+            # If it's already WAV, copy to temp dir
+            processed_audio_path = temp_wav_path
+            shutil.copy2(audio_path, processed_audio_path)
 
-        # Use a simpler approach with OpenAI's Whisper Python package
+        # Use Whisper Python package
         import whisper
 
         logger.info("Loading Whisper model")
         model = whisper.load_model("base")
 
-        logger.info(f"Transcribing audio file: {audio_path}")
-        result = model.transcribe(audio_path)
+        logger.info(f"Transcribing audio file: {processed_audio_path}")
+        result = model.transcribe(processed_audio_path)
 
         # The transcript is in the 'text' field of the result
         transcript = result["text"]
         logger.info(f"Transcription successful: {len(transcript)} characters")
+
+        # Clean up temporary files
+        try:
+            os.remove(processed_audio_path)
+            logger.info(f"Removed temporary file: {processed_audio_path}")
+        except Exception as e:
+            logger.warning(f"Could not remove temporary file: {e}")
 
         return transcript
     except Exception as e:
@@ -218,52 +239,135 @@ def transcribe_audio(audio_path: str) -> str:
         )
 
 
-# Endpoints
+def get_temp_dir():
+    """Get or create the application's temp directory"""
+    temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp")
+    os.makedirs(temp_dir, exist_ok=True)
+    return temp_dir
+
+
 @app.post("/summarize", response_model=SummaryResponse)
 async def summarize_file(
     file: UploadFile = File(...),
     file_type: FileType = Form(...),
     file_name: str = Form(...),
+    target_language: str = Form("en"),
 ):
     """
     Universal endpoint for summarizing files.
     This endpoint handles different file types and routes them to the appropriate processor.
     """
     logger.info(f"Received file: {file_name}, type: {file_type}")
+    if target_language == "pt":
+        target_language = "pt-br"
+    # Create a unique filename to avoid collisions
+    unique_id = f"{int(time.time())}_{uuid.uuid4().hex[:8]}"
+    file_extension = os.path.splitext(file_name)[1]
+    unique_filename = f"{unique_id}{file_extension}"
 
-    # Create temp directory to store the file
-    with tempfile.TemporaryDirectory() as temp_dir:
-        file_path = os.path.join(temp_dir, file_name)
+    # Get the temp directory
+    temp_dir = get_temp_dir()
+    file_path = os.path.join(temp_dir, unique_filename)
 
+    try:
         # Save the uploaded file
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
+        logger.info(f"Saved uploaded file to: {file_path}")
         summary = ""
 
         # Process based on file type
         if file_type == FileType.PDF:
             text = extract_text_from_pdf(file_path)
-            summary = generate_text_summary(text)
+            summary = generate_text_summary(text, target_language)
 
         elif file_type == FileType.AUDIO:
             transcript = transcribe_audio(file_path)
-            summary = generate_text_summary(transcript)
+            summary = generate_text_summary(transcript, target_language)
 
         elif file_type == FileType.IMAGE:
-            summary = generate_image_summary(file_path)
+            summary = generate_image_summary(file_path, target_language)
 
         elif file_type == FileType.TEXT:
             with open(file_path, "r") as text_file:
                 text = text_file.read()
-            summary = generate_text_summary(text)
+            summary = generate_text_summary(text, target_language)
 
         else:
             raise HTTPException(
                 status_code=400, detail=f"Unsupported file type: {file_type}"
             )
 
-    return SummaryResponse(summary=summary, file_type=file_type, file_name=file_name)
+        # Clean up the temporary file
+        try:
+            os.remove(file_path)
+            logger.info(f"Removed temporary file: {file_path}")
+        except Exception as e:
+            logger.warning(f"Could not remove temporary file: {e}")
+
+        return SummaryResponse(
+            summary=summary, file_type=file_type, file_name=file_name
+        )
+    except Exception as e:
+        # Clean up on error too
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except:
+            pass
+
+        logger.error(f"Error processing {file_type} file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Add a cleanup job at application startup
+@app.on_event("startup")
+async def startup_event():
+    """Clean up any leftover temporary files at startup"""
+    temp_dir = get_temp_dir()
+    try:
+        # Delete files older than 1 hour
+        current_time = time.time()
+        for filename in os.listdir(temp_dir):
+            file_path = os.path.join(temp_dir, filename)
+            if os.path.isfile(file_path):
+                file_age = current_time - os.path.getctime(file_path)
+                # Delete if older than 1 hour (3600 seconds)
+                if file_age > 3600:
+                    os.remove(file_path)
+                    logger.info(f"Cleaned up old temporary file: {file_path}")
+    except Exception as e:
+        logger.warning(f"Error during temp file cleanup: {e}")
+
+
+# Add a scheduled cleanup function that runs periodically (if you want)
+@app.on_event("startup")
+async def setup_periodic_cleanup():
+    """Set up periodic cleanup of temporary files"""
+    import asyncio
+
+    async def periodic_cleanup():
+        while True:
+            try:
+                temp_dir = get_temp_dir()
+                current_time = time.time()
+                for filename in os.listdir(temp_dir):
+                    file_path = os.path.join(temp_dir, filename)
+                    if os.path.isfile(file_path):
+                        file_age = current_time - os.path.getctime(file_path)
+                        # Delete if older than 1 hour (3600 seconds)
+                        if file_age > 3600:
+                            os.remove(file_path)
+                            logger.info(f"Cleaned up old temporary file: {file_path}")
+            except Exception as e:
+                logger.warning(f"Error during periodic temp file cleanup: {e}")
+
+            # Wait for 30 minutes before next cleanup
+            await asyncio.sleep(1800)
+
+    # Start the cleanup task
+    asyncio.create_task(periodic_cleanup())
 
 
 # Health check endpoint
