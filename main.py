@@ -50,7 +50,17 @@ class SummaryResponse(BaseModel):
     file_name: str
 
 
-# Helper functions
+def filter_model_response(response: str) -> str:
+    """Filter out model's 'thinking' process from the response."""
+    # Check if response contains <think> tags
+    if "<think>" in response and "</think>" in response:
+        # Extract only the part after </think>
+        filtered_response = response.split("</think>")[-1].strip()
+        return filtered_response
+    return response
+
+
+# Then modify your generate_text_summary function:
 def generate_text_summary(text: str) -> str:
     """Generate a summary using the text model"""
     prompt = f"Please summarize the following text concisely:\n\n{text}"
@@ -65,7 +75,11 @@ def generate_text_summary(text: str) -> str:
         response = requests.post(OLLAMA_API_URL, json=payload)
         response.raise_for_status()
         result = response.json()
-        return result.get("response", "")
+        raw_response = result.get("response", "")
+
+        # Filter out the thinking process
+        filtered_response = filter_model_response(raw_response)
+        return filtered_response
     except requests.exceptions.RequestException as e:
         logger.error(f"Error generating summary: {e}")
         raise HTTPException(
