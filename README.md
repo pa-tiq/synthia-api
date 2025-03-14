@@ -1,13 +1,19 @@
 # [synthia-api](https://github.com/pa-tiq/synthia-api)
 
-## Run DeepSeek
+## Run models with Ollama
 
 1. [Install ollama](https://ollama.com/download)
 
-2. Run the [the model](https://ollama.com/library/deepseek-r1:1.5b):
+2. Run [DeepSeek](https://ollama.com/library/deepseek-r1:1.5b):
 
 ```bash
 ollama run deepseek-r1:1.5b
+```
+
+3. Run [LLaVA](https://ollama.com/library/llava:7b):
+
+```bash
+ollama run llava:7b
 ```
 
 ## Run the API
