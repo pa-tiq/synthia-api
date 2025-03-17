@@ -45,12 +45,12 @@
 
 ## Requirements
 
-### Install FFMPEG
+### Install FFMPEG and Redis
 
 Linux:
 
 ```bash
-sudo apt-get install ffmpeg
+sudo apt-get install -y ffmpeg redis-server
 ```
 
 ### Run models with Ollama
@@ -67,6 +67,20 @@ ollama run deepseek-r1:1.5b
 
 ```bash
 ollama run llava:7b
+```
+
+### Start Redis and the synthia-api's Worker
+
+First, start the Redis Server. To check if it's already running, you can launch the `redis-cli` and use the command `ping`. If the response is `PONG`, then the Redis Server is already running.
+
+```bash
+redis-server
+```
+
+Now we launch our worker:
+
+```bash
+python app/worker.py
 ```
 
 ## Run the API

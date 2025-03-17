@@ -5,6 +5,12 @@ import uvicorn
 from app.config.settings import CORS_ORIGINS
 from app.api.endpoints import summarize
 from app.utils.temp_manager import setup_periodic_cleanup, startup_cleanup
+import redis
+from rq import Queue
+
+# Initialize Redis and RQ
+redis_conn = redis.Redis()
+queue = Queue(connection=redis_conn)
 
 
 # Define lifespan context manager
@@ -13,6 +19,9 @@ async def lifespan(app: FastAPI):
     # Startup code
     await startup_cleanup()
     cleanup_task = await setup_periodic_cleanup()
+
+    # Store Redis queue in app state
+    app.state.redis_queue = queue
 
     yield  # This is where the app runs
 
