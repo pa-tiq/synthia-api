@@ -1,7 +1,7 @@
 # [synthia-api](https://github.com/pa-tiq/synthia-api)
 
 ## Folder Structure:
-
+├── .vscode/                     # Vscode files for easy testing and debugging
 ├── .env                         # Environment variables (not in version control)
 ├── .gitignore                   # Git ignore file
 ├── requirements.txt             # Python dependencies
