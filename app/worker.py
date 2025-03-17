@@ -1,4 +1,10 @@
-# app/worker.py
+import os
+import sys
+
+# Add the project's root directory to the PYTHONPATH
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
 import redis
 from rq import Worker
 

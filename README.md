@@ -7,6 +7,7 @@
 ├── .gitignore                   # Git ignore file
 ├── requirements.txt             # Python dependencies
 ├── app/                         # Main application package
+│   ├── worker.py                # Redis Queue worker
 │   ├── main.py                  # Application entry point
 │   ├── config/                  # Configuration
 │   │   ├── settings.py          # App settings and constants
@@ -82,6 +83,13 @@ Now we launch our worker:
 ```bash
 python app/worker.py
 ```
+
+To monitor the jobs, use monitor.py:
+
+```bash
+python app/monitor.py
+```
+
 
 ## Run the API
 
