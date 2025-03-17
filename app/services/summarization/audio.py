@@ -5,6 +5,8 @@ import time
 from app.config.logging_config import logger
 from app.config.settings import TEMP_DIR
 from app.services.summarization.text import generate_text_summary
+import ffmpeg
+import whisper
 
 
 def transcribe_audio(audio_path: str) -> str:
@@ -42,31 +44,18 @@ def transcribe_audio(audio_path: str) -> str:
 
         # Convert audio to WAV format if it's not already (Whisper works best with WAV)
         if file_ext.lower() not in [".wav"]:
-            # Convert to WAV using ffmpeg
-            convert_cmd = [
-                ffmpeg_path,
-                "-i",
-                audio_path,
-                "-ar",
-                "16000",  # 16kHz sample rate (recommended for Whisper)
-                "-ac",
-                "1",  # mono
-                "-c:a",
-                "pcm_s16le",  # 16-bit PCM
-                "-y",  # overwrite output file
-                temp_wav_path,
-            ]
-
-            logger.info(f"Converting audio to WAV format: {' '.join(convert_cmd)}")
-            conversion_result = subprocess.run(
-                convert_cmd, capture_output=True, text=True
+            logger.info(
+                f"Converting audio to WAV using ffmpeg-python: {audio_path} to {temp_wav_path}"
             )
 
-            if conversion_result.returncode != 0:
-                logger.error(f"Audio conversion failed: {conversion_result.stderr}")
-                raise Exception(
-                    f"Failed to convert audio file: {conversion_result.stderr}"
-                )
+            # Convert audio to WAV using ffmpeg-python
+            ffmpeg.input(audio_path).output(
+                temp_wav_path,
+                ar=16000,  # 16kHz sample rate (recommended for Whisper)
+                ac=1,  # mono
+                acodec="pcm_s16le",  # 16-bit PCM
+                y=None,  # overwrite output file
+            ).run(capture_stdout=True, capture_stderr=True)
 
             logger.info("Audio conversion successful")
             processed_audio_path = temp_wav_path
@@ -74,9 +63,6 @@ def transcribe_audio(audio_path: str) -> str:
             # If it's already WAV, copy to temp dir
             processed_audio_path = temp_wav_path
             shutil.copy2(audio_path, processed_audio_path)
-
-        # Use Whisper Python package
-        import whisper
 
         logger.info("Loading Whisper model")
         model = whisper.load_model("base")
@@ -96,6 +82,11 @@ def transcribe_audio(audio_path: str) -> str:
             logger.warning(f"Could not remove temporary file: {e}")
 
         return transcript
+    except ffmpeg.Error as e:
+        logger.error(f"ffmpeg-python error: {e.stderr.decode('utf8')}")
+        logger.error(f"ffmpeg-python stdout: {e.stdout.decode('utf8')}")
+        logger.error(f"ffmpeg-python error: {e.stderr.decode('utf8')}")
+        raise Exception(f"ffmpeg-python conversion failed: {e.stderr.decode('utf8')}")
     except Exception as e:
         logger.error(f"Error transcribing audio: {e}")
         raise
