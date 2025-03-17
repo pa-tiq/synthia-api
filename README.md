@@ -1,6 +1,7 @@
 # [synthia-api](https://github.com/pa-tiq/synthia-api)
 
 ## Folder Structure:
+```
 ├── .vscode/                     # Vscode files for easy testing and debugging
 ├── .env                         # Environment variables (not in version control)
 ├── .gitignore                   # Git ignore file
@@ -40,8 +41,11 @@
             ├── test_image.py
             ├── test_pdf.py
             └── test_audio.py
+```
 
-## Install FFMPEG
+## Requirements
+
+### Install FFMPEG
 
 Linux:
 
@@ -49,7 +53,7 @@ Linux:
 sudo apt-get install ffmpeg
 ```
 
-## Run models with Ollama
+### Run models with Ollama
 
 1. [Install ollama](https://ollama.com/download)
 
