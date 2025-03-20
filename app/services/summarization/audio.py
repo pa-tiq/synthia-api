@@ -235,6 +235,9 @@ def transcribe_audio(audio_path: str) -> str:
 def summarize_audio(audio_path: str, target_language: str = "en") -> str:
     """Transcribe audio and generate a summary"""
     transcript = transcribe_audio(audio_path)
+    logger.info(f"#############################")
+    logger.info(f"AUDIO TRANSCRIPT: {transcript}")
+    logger.info(f"#############################")
     return generate_text_summary(transcript, target_language)
 
 

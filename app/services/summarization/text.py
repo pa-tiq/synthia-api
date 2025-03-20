@@ -5,7 +5,9 @@ from app.services.ai_client import OllamaClient
 
 def generate_text_summary(text: str, target_language: str = "en") -> str:
     """Generate a summary using the text model"""
-    prompt = f"Please summarize the following text concisely. There's no need to emit an opinion. Just summarize it, extracting the key points of the text. The summary must be in the language {target_language}.\n\n{text}"
+    # prompt = f"Please summarize the following text concisely. There's no need to emit an opinion. Just summarize # it, extracting the key points of the text. The summary must be in the language {target_language}.\n\n{text}"
+
+    prompt = f"Please summarize the following text concisely without emiting opinions:\n\n{text}"
 
     try:
         response = OllamaClient.generate(model=TEXT_MODEL, prompt=prompt)
