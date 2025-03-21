@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 from app.config.settings import CORS_ORIGINS
 from app.api.endpoints import summarize
 from app.utils.temp_manager import setup_periodic_cleanup, startup_cleanup
@@ -54,7 +53,3 @@ app.include_router(summarize.router, tags=["summarization"])
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
-
-
-if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

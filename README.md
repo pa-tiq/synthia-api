@@ -31,6 +31,8 @@
 │   └── utils/                   # Utility functions
 │       ├── file_helpers.py      # File handling utilities
 │       └── temp_manager.py      # Temporary file management
+├── conversion_api/              # Audio conversion API
+│   └── main.py                   # Audio conversion API entry point
 └── tests/                       # Unit and integration tests
     ├── conftest.py              # Test fixtures
     ├── test_api/                # API tests
@@ -70,30 +72,9 @@ ollama run deepseek-r1:1.5b
 ollama run llava:7b
 ```
 
-### Start Redis and the synthia-api's Worker
+### Create and activate the venv, Start Redis, synthia-api's Worker and conversion_api
 
-First, start the Redis Server. To check if it's already running, you can launch the `redis-cli` and use the command `ping`. If the response is `PONG`, then the Redis Server is already running.
-
-```bash
-redis-server
-```
-
-Now we launch our worker:
-
-```bash
-python app/worker.py
-```
-
-To monitor the jobs, use monitor.py:
-
-```bash
-python app/monitor.py
-```
-
-
-## Run the API
-
-1. Create and activate venv with:
+1. Create and activate the venv with:
 
 ```bash
 python3 -m venv .venv
@@ -106,8 +87,38 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3. Run with:
+3. Then, start the Redis Server. To check if it's already running, you can launch the `redis-cli` and use the command `ping`. If the response is `PONG`, then the Redis Server is already running.
 
 ```bash
-uvicorn main:app --reload
+redis-server
+```
+
+4. Now we launch our worker:
+
+```bash
+python app/worker.py
+```
+
+5. Finally, launch the conversion_api:
+
+```bash
+cd conversion_api
+uvicorn main:app --host 0.0.0.0 --port 8001
+```
+
+
+## Run the API
+
+Run with:
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+### Helpers
+
+To see if there are any active jobs, use monitor.py:
+
+```bash
+python app/monitor.py
 ```

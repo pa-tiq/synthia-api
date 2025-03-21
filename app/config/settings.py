@@ -19,3 +19,6 @@ TEMP_DIR = os.path.join(
 )
 TEMP_FILE_MAX_AGE = 3600  # 1 hour in seconds
 TEMP_CLEANUP_INTERVAL = 1800  # 30 minutes in seconds
+
+# Audio file conversion
+CONVERSION_API_URL = "http://localhost:8001"
