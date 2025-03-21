@@ -51,8 +51,6 @@ async def summarize_file(
     target_language: str = Form("en"),
 ):
     """Universal endpoint for submitting files for summarization."""
-    if target_language == "pt":
-        target_language = "pt-br"
     file_path = await save_upload_file(file, file_name)
     queue: Queue = request.app.state.redis_queue
     job = queue.enqueue(

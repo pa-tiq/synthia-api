@@ -104,7 +104,7 @@ def transcribe_audio(audio_path: str) -> str:
 
         # Process with Whisper
         logger.info("Loading Whisper model")
-        model = whisper.load_model("base")
+        model = whisper.load_model("small")
 
         logger.info(f"Transcribing audio file: {processed_audio_path}")
         result = model.transcribe(processed_audio_path)

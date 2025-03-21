@@ -1,5 +1,6 @@
 import os
 from typing import List
+from pathlib import Path
 
 # API Configuration
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
@@ -22,3 +23,7 @@ TEMP_CLEANUP_INTERVAL = 1800  # 30 minutes in seconds
 
 # Audio file conversion
 CONVERSION_API_URL = "http://localhost:8001"
+
+# Path for storing models
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+MODELS_DIR = os.environ.get("MODELS_DIR", os.path.join(BASE_DIR, "models"))
