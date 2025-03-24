@@ -21,6 +21,7 @@
 │   │   └── enums.py             # Enum definitions (like FileType)
 │   ├── services/                # Business logic services
 │   │   ├── file_service.py      # File handling operations
+│   │   ├── translation.py       # Translation operations
 │   │   ├── summarization/       # Summarization services
 │   │   │   ├── base.py          # Base class/interface for summarizers
 │   │   │   ├── text.py          # Text summarization
