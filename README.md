@@ -33,7 +33,7 @@
 │       ├── file_helpers.py      # File handling utilities
 │       └── temp_manager.py      # Temporary file management
 ├── conversion_api/              # Audio conversion API
-│   └── main.py                   # Audio conversion API entry point
+│   └── main.py                  # Audio conversion API entry point
 └── tests/                       # Unit and integration tests
     ├── conftest.py              # Test fixtures
     ├── test_api/                # API tests
