@@ -177,6 +177,7 @@ cython_debug/
 temp/
 *.tmp
 *.temp
+models/
 
 # OS specific files
 .DS_Store

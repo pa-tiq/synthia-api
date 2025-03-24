@@ -18,13 +18,16 @@ def generate_text_summary(text: str, target_language: str = "en") -> str:
     try:
         # Step 1: If target language is Portuguese, translate to English first
         input_text = text
-        # needs_translation = target_language.lower() != "pt"
-        needs_translation = False
+        needs_translation = target_language.lower() == "pt"
+        # needs_translation = False
 
         if needs_translation:
             logger.info("Translating Portuguese input to English for summarization")
             input_text = translate_pt_to_en(text)
             logger.info(f"Translation complete: {len(input_text)} characters")
+            logger.info(f"#####################################")
+            logger.info(f"{input_text}")
+            logger.info(f"#####################################")
 
         # Step 2: Generate summary using the English model
         prompt = f"Please summarize the following text concisely without emitting opinions:\n\n{input_text}"
@@ -36,6 +39,9 @@ def generate_text_summary(text: str, target_language: str = "en") -> str:
             logger.info("Translating summary back to Portuguese")
             summary = translate_en_to_pt(summary)
             logger.info(f"Summary translation complete: {len(summary)} characters")
+            logger.info(f"#####################################")
+            logger.info(f"{summary}")
+            logger.info(f"#####################################")
 
         return summary
     except Exception as e:

@@ -60,13 +60,13 @@ sudo apt-get install -y ffmpeg redis-server
 
 1. [Install ollama](https://ollama.com/download)
 
-2. Run [DeepSeek](https://ollama.com/library/deepseek-r1:1.5b):
+2. Run [DeepSeek](https://ollama.com/library/deepseek-r1:1.5b) for texts:
 
 ```bash
 ollama run deepseek-r1:1.5b
 ```
 
-3. Run [LLaVA](https://ollama.com/library/llava:7b):
+3. Run [LLaVA](https://ollama.com/library/llava:7b) for images:
 
 ```bash
 ollama run llava:7b

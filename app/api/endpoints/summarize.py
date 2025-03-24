@@ -91,8 +91,6 @@ async def summarize_text(
     request: Request, text: str = Form(...), target_language: str = Form("en")
 ):
     """Summarize directly provided text via queue."""
-    if target_language == "pt":
-        target_language = "pt-br"
     queue: Queue = request.app.state.redis_queue
     job = queue.enqueue(generate_text_summary, text, target_language)
     return {"job_id": job.id}

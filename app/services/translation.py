@@ -26,7 +26,7 @@ def load_translation_models():
     if pt_to_en_model is None:
         try:
             logger.info("Loading Portuguese-to-English translation model")
-            pt_to_en_model_name = "Helsinki-NLP/opus-mt-pt-en"
+            pt_to_en_model_name = "Helsinki-NLP/opus-mt-ROMANCE-en"
             # Cache models in the MODELS_DIR
             pt_to_en_tokenizer = MarianTokenizer.from_pretrained(
                 pt_to_en_model_name, cache_dir=MODELS_DIR
@@ -42,7 +42,8 @@ def load_translation_models():
     if en_to_pt_model is None:
         try:
             logger.info("Loading English-to-Portuguese translation model")
-            en_to_pt_model_name = "Helsinki-NLP/opus-mt-en-pt"
+
+            en_to_pt_model_name = "Helsinki-NLP/opus-mt-tc-big-en-pt"
             en_to_pt_tokenizer = MarianTokenizer.from_pretrained(
                 en_to_pt_model_name, cache_dir=MODELS_DIR
             )
