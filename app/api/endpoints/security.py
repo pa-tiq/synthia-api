@@ -10,6 +10,8 @@ from datetime import timedelta
 import datetime
 import base64
 from fastapi import Form
+from app.config.logging_config import logger
+
 
 router = APIRouter()
 
@@ -38,7 +40,7 @@ class AsyncRedisTokenManager:
                 "registration_token": registration_token,
                 "server_public_key": server_public_key,
                 "symmetric_key": symmetric_key.decode(),
-                "key_created_at": str(datetime.utcnow().timestamp()),
+                "key_created_at": str(datetime.datetime.now(datetime.UTC).timestamp()),
                 "active": "true",
             },
         )
@@ -52,7 +54,7 @@ class AsyncRedisTokenManager:
             return None
 
         key_created_at = float(user_data.get(b"key_created_at", b"0").decode())
-        current_time = datetime.utcnow().timestamp()
+        current_time = datetime.datetime.now(datetime.UTC).timestamp()
         
         # Rotate key if it's older than the rotation interval
         if current_time - key_created_at > self.key_rotation_interval.total_seconds():
@@ -66,8 +68,9 @@ class AsyncRedisTokenManager:
             )
             return new_key
         
-        return user_data.get(b"symmetric_key", b"").encode()
-    
+        stored_key = user_data.get(b"symmetric_key", b"").decode()
+        return stored_key.encode() if stored_key else None
+        
     async def validate_registration(self, user_id, registration_token):
         """Validate user registration."""
         user_data = await self.redis.hgetall(f"user:{user_id}")
@@ -79,6 +82,14 @@ class AsyncRedisTokenManager:
         is_active = user_data.get(b"active", b"false").decode("utf-8") == "true"
 
         return (stored_token == registration_token) and is_active
+    
+    async def get_token_expiration(self, user_id: str) -> int:
+        """Get remaining token validity time in seconds."""
+        try:
+            ttl = await self.redis.ttl(f"user:{user_id}")
+            return max(0, ttl)
+        except Exception:
+            return 0
 
 
 class AsymmetricEncryptionManager:
@@ -170,6 +181,42 @@ async def rotate_key(
     encrypted_key = encryption_manager.encrypt_symmetric_key(client_public_key, new_key)
     
     return {"encrypted_symmetric_key": encrypted_key}
+
+@router.post("/validate")
+async def validate_registration(
+    user_id: str = Form(...),
+    registration_token: str = Form(...),
+):
+    """Validate user registration token."""
+    try:
+        is_valid = await token_manager.validate_registration(user_id, registration_token)
+        
+        if not is_valid:
+            raise HTTPException(
+                status_code=403,
+                detail="Invalid or expired registration",
+            )
+            
+        # Get current symmetric key
+        symmetric_key = await token_manager.get_symmetric_key(user_id)
+        if not symmetric_key:
+            raise HTTPException(
+                status_code=403,
+                detail="No valid session found",
+            )
+            
+        return {
+            "valid": True,
+            "user_id": user_id,
+            "expires_in": int(token_manager.token_expiration.total_seconds()),
+        }
+        
+    except Exception as e:
+        logger.error(f"Validation error for user {user_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Validation error: {str(e)}",
+        )
 
 
 def setup_security_dependencies(app):
