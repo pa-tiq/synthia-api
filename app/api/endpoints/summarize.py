@@ -7,8 +7,9 @@ from app.services.summarization.text import generate_text_summary
 from app.services.summarization.image import generate_image_summary
 from app.services.summarization.pdf import summarize_pdf
 from app.services.summarization.audio import summarize_audio
-from rq import Queue, job
-import redis
+from app.security import token_manager, encryption_manager
+from rq import Queue
+import base64
 
 router = APIRouter()
 
@@ -43,22 +44,66 @@ def process_summarization(
 
 
 @router.post("/summarize")
-async def summarize_file(
+async def secure_summarize(
     request: Request,
+    user_id: str = Form(...),
+    registration_token: str = Form(...),
+    encrypted_payload: str = Form(...),
+    client_public_key: str = Form(...),
     file: UploadFile = File(...),
     file_type: FileType = Form(...),
     file_name: str = Form(...),
     target_language: str = Form("en"),
 ):
-    """Universal endpoint for submitting files for summarization."""
+    """Secure summarization endpoint with user validation."""
+    # Validate user registration
+    if not await token_manager.validate_registration(user_id, registration_token):
+        raise HTTPException(status_code=403, detail="Invalid or expired registration")
+
+    # Decrypt the payload if needed (optional, depends on your exact encryption strategy)
+    try:
+        # Assuming encrypted_payload is base64 encoded
+        decoded_payload = base64.b64decode(encrypted_payload)
+        # You might want to implement payload decryption here if using asymmetric encryption
+        # decrypted_payload = encryption_manager.decrypt_payload(decoded_payload)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Payload decryption failed: {str(e)}"
+        )
+
+    # Save uploaded file
     file_path = await save_upload_file(file, file_name)
+
+    # Enqueue summarization job
     queue: Queue = request.app.state.redis_queue
     job = queue.enqueue(
         process_summarization, file_path, file_type, file_name, target_language
     )
+
     return {"job_id": job.id}
 
 
+@router.post("/summarize/text")
+async def secure_text_summarize(
+    request: Request,
+    user_id: str = Form(...),
+    registration_token: str = Form(...),
+    text: str = Form(...),
+    target_language: str = Form("en"),
+):
+    """Secure text summarization endpoint."""
+    # Validate user registration
+    if not await token_manager.validate_registration(user_id, registration_token):
+        raise HTTPException(status_code=403, detail="Invalid or expired registration")
+
+    # Enqueue text summarization job
+    queue: Queue = request.app.state.redis_queue
+    job = queue.enqueue(generate_text_summary, text, target_language)
+
+    return {"job_id": job.id}
+
+
+# Existing result retrieval endpoint remains the same
 @router.get("/result/{job_id}", response_model=JobStatusResponse)
 async def get_job_result(request: Request, job_id: str):
     """Endpoint to retrieve the result of a summarization job."""
@@ -84,13 +129,3 @@ async def get_job_result(request: Request, job_id: str):
         )
     else:
         return JobStatusResponse(status=JobStatus.PROCESSING, job_id=job_id)
-
-
-@router.post("/summarize/text", response_model=SummaryResponse)
-async def summarize_text(
-    request: Request, text: str = Form(...), target_language: str = Form("en")
-):
-    """Summarize directly provided text via queue."""
-    queue: Queue = request.app.state.redis_queue
-    job = queue.enqueue(generate_text_summary, text, target_language)
-    return {"job_id": job.id}
