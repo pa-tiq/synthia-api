@@ -7,9 +7,12 @@ from app.services.summarization.text import generate_text_summary
 from app.services.summarization.image import generate_image_summary
 from app.services.summarization.pdf import summarize_pdf
 from app.services.summarization.audio import summarize_audio
-from app.security import token_manager, encryption_manager
+from app.api.endpoints.security import token_manager, encryption_manager
 from rq import Queue
 import base64
+from cryptography.fernet import Fernet
+import json
+
 
 router = APIRouter()
 
@@ -55,32 +58,53 @@ async def secure_summarize(
     file_name: str = Form(...),
     target_language: str = Form("en"),
 ):
-    """Secure summarization endpoint with user validation."""
+    """Secure summarization endpoint with user validation and encryption."""
     # Validate user registration
     if not await token_manager.validate_registration(user_id, registration_token):
         raise HTTPException(status_code=403, detail="Invalid or expired registration")
 
-    # Decrypt the payload if needed (optional, depends on your exact encryption strategy)
+    # Get current symmetric key (will rotate if needed)
+    symmetric_key = await token_manager.get_symmetric_key(user_id)
+    if not symmetric_key:
+        raise HTTPException(status_code=403, detail="Invalid session")
+
+    # Create Fernet cipher for symmetric encryption
+    cipher = Fernet(symmetric_key)
+    
     try:
-        # Assuming encrypted_payload is base64 encoded
+        # Decrypt the payload
         decoded_payload = base64.b64decode(encrypted_payload)
-        # You might want to implement payload decryption here if using asymmetric encryption
-        # decrypted_payload = encryption_manager.decrypt_payload(decoded_payload)
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Payload decryption failed: {str(e)}"
+        decrypted_payload = cipher.decrypt(decoded_payload)
+        
+        # You can now use decrypted_payload if needed
+        
+        # Save uploaded file
+        file_path = await save_upload_file(file, file_name)
+
+        # Enqueue summarization job
+        queue: Queue = request.app.state.redis_queue
+        job = queue.enqueue(
+            process_summarization, file_path, file_type, file_name, target_language
         )
 
-    # Save uploaded file
-    file_path = await save_upload_file(file, file_name)
+        # Encrypt the response
+        response_data = {"job_id": job.id}
+        encrypted_response = cipher.encrypt(json.dumps(response_data).encode())
+        
+        # Encrypt new symmetric key with client's public key
+        encrypted_key = encryption_manager.encrypt_symmetric_key(
+            client_public_key, symmetric_key
+        )
 
-    # Enqueue summarization job
-    queue: Queue = request.app.state.redis_queue
-    job = queue.enqueue(
-        process_summarization, file_path, file_type, file_name, target_language
-    )
+        return {
+            "encrypted_data": base64.b64encode(encrypted_response).decode(),
+            "encrypted_symmetric_key": encrypted_key,
+        }
 
-    return {"job_id": job.id}
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Encryption/decryption failed: {str(e)}"
+        )
 
 
 @router.post("/summarize/text")
