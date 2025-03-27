@@ -1,0 +1,32 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:latest
+  deepseek:
+    image: ollama/ollama
+    command: serve deepseek-r1:1.5b
+  llava:
+    image: ollama/ollama
+    command: serve llava:7b
+  worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.worker
+    depends_on:
+      - redis
+  conversion_api:
+    build:
+      context: ./conversion_api
+      dockerfile: ./Dockerfile
+  api:
+    build:
+      context: ./app
+      dockerfile: ./Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - deepseek
+      - llava
+      - worker
+      - conversion_api

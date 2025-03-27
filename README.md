@@ -123,3 +123,23 @@ To see if there are any active jobs, use monitor.py:
 ```bash
 python app/monitor.py
 ```
+
+## Using Docker-compose
+
+Start the containers
+
+```bash
+docker-compose up # Start the containers
+```
+
+Stop all containers
+
+```bash
+docker-compose down 
+```
+
+Rebuild the images
+
+```bash
+docker-compose build 
+```
