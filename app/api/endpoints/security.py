@@ -27,13 +27,16 @@ class AsyncRedisTokenManager:
         self.redis = redis_client
         self.token_expiration = timedelta(hours=24)
         self.key_rotation_interval = timedelta(hours=1)  # Rotate keys every hour
-  # Tokens valid for 24 hours
 
-    async def store_registration_details(self, user_id, registration_token, server_public_key):
+    # Tokens valid for 24 hours
+
+    async def store_registration_details(
+        self, user_id, registration_token, server_public_key
+    ):
         """Store registration details with expiration."""
         # Generate symmetric key for this session
         symmetric_key = Fernet.generate_key()
-        
+
         await self.redis.hset(
             f"user:{user_id}",
             mapping={
@@ -44,9 +47,11 @@ class AsyncRedisTokenManager:
                 "active": "true",
             },
         )
-        await self.redis.expire(f"user:{user_id}", int(self.token_expiration.total_seconds()))
+        await self.redis.expire(
+            f"user:{user_id}", int(self.token_expiration.total_seconds())
+        )
         return symmetric_key
-    
+
     async def get_symmetric_key(self, user_id):
         """Get symmetric key and rotate if needed."""
         user_data = await self.redis.hgetall(f"user:{user_id}")
@@ -55,7 +60,7 @@ class AsyncRedisTokenManager:
 
         key_created_at = float(user_data.get(b"key_created_at", b"0").decode())
         current_time = datetime.datetime.now(datetime.UTC).timestamp()
-        
+
         # Rotate key if it's older than the rotation interval
         if current_time - key_created_at > self.key_rotation_interval.total_seconds():
             new_key = Fernet.generate_key()
@@ -67,10 +72,10 @@ class AsyncRedisTokenManager:
                 },
             )
             return new_key
-        
+
         stored_key = user_data.get(b"symmetric_key", b"").decode()
         return stored_key.encode() if stored_key else None
-        
+
     async def validate_registration(self, user_id, registration_token):
         """Validate user registration."""
         user_data = await self.redis.hgetall(f"user:{user_id}")
@@ -82,7 +87,7 @@ class AsyncRedisTokenManager:
         is_active = user_data.get(b"active", b"false").decode("utf-8") == "true"
 
         return (stored_token == registration_token) and is_active
-    
+
     async def get_token_expiration(self, user_id: str) -> int:
         """Get remaining token validity time in seconds."""
         try:
@@ -96,7 +101,9 @@ class AsymmetricEncryptionManager:
     @staticmethod
     def encrypt_symmetric_key(client_public_key_pem, symmetric_key):
         """Encrypt symmetric key using client's public key."""
-        client_public_key = serialization.load_pem_public_key(client_public_key_pem.encode())
+        client_public_key = serialization.load_pem_public_key(
+            client_public_key_pem.encode()
+        )
         encrypted_key = client_public_key.encrypt(
             symmetric_key,
             padding.OAEP(
@@ -106,7 +113,7 @@ class AsymmetricEncryptionManager:
             ),
         )
         return base64.b64encode(encrypted_key).decode()
-    
+
     @staticmethod
     def generate_server_key_pair():
         """Generate RSA key pair for server."""
@@ -164,6 +171,7 @@ async def register_user():
         server_public_key=public_key,
     )
 
+
 @router.post("/rotate-key")
 async def rotate_key(
     user_id: str = Form(...),
@@ -176,11 +184,12 @@ async def rotate_key(
 
     # Generate and store new symmetric key
     new_key = await token_manager.get_symmetric_key(user_id)
-    
+
     # Encrypt new symmetric key with client's public key
     encrypted_key = encryption_manager.encrypt_symmetric_key(client_public_key, new_key)
-    
+
     return {"encrypted_symmetric_key": encrypted_key}
+
 
 @router.post("/validate")
 async def validate_registration(
@@ -189,14 +198,16 @@ async def validate_registration(
 ):
     """Validate user registration token."""
     try:
-        is_valid = await token_manager.validate_registration(user_id, registration_token)
-        
+        is_valid = await token_manager.validate_registration(
+            user_id, registration_token
+        )
+
         if not is_valid:
             raise HTTPException(
                 status_code=403,
                 detail="Invalid or expired registration",
             )
-            
+
         # Get current symmetric key
         symmetric_key = await token_manager.get_symmetric_key(user_id)
         if not symmetric_key:
@@ -204,13 +215,14 @@ async def validate_registration(
                 status_code=403,
                 detail="No valid session found",
             )
-            
+
+        logger.info(f"Validated {user_id}: {str(datetime.datetime.now(datetime.UTC))}")
         return {
             "valid": True,
             "user_id": user_id,
             "expires_in": int(token_manager.token_expiration.total_seconds()),
         }
-        
+
     except Exception as e:
         logger.error(f"Validation error for user {user_id}: {str(e)}")
         raise HTTPException(
