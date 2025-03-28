@@ -101,18 +101,25 @@ class AsymmetricEncryptionManager:
     @staticmethod
     def encrypt_symmetric_key(client_public_key_pem, symmetric_key):
         """Encrypt symmetric key using client's public key."""
-        client_public_key = serialization.load_pem_public_key(
-            client_public_key_pem.encode()
-        )
-        encrypted_key = client_public_key.encrypt(
-            symmetric_key,
-            padding.OAEP(
-                mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None,
-            ),
-        )
-        return base64.b64encode(encrypted_key).decode()
+        try:
+            encoded = client_public_key_pem.encode()
+            logger.info(f"Encoded client public key: {encoded}")
+            client_public_key = serialization.load_pem_public_key(encoded)
+            logger.info(f"Loaded key: {client_public_key}")
+            encrypted_key = client_public_key.encrypt(
+                symmetric_key,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None,
+                ),
+                # padding.PKCS1v15(),
+            )
+
+            return base64.b64encode(encrypted_key).decode()
+        except Exception as e:
+            logger.error(f"Error encrypting symmetric key: {e}")
+            raise HTTPException(status_code=500, detail=f"Encryption failed: {e}")
 
     @staticmethod
     def generate_server_key_pair():
@@ -184,8 +191,9 @@ async def rotate_key(
 
     # Generate and store new symmetric key
     new_key = await token_manager.get_symmetric_key(user_id)
-
+    client_public_key = client_public_key.strip()
     # Encrypt new symmetric key with client's public key
+    # logger.info(f"Client public key: {client_public_key.encode()}")
     encrypted_key = encryption_manager.encrypt_symmetric_key(client_public_key, new_key)
 
     return {"encrypted_symmetric_key": encrypted_key}
