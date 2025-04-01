@@ -40,7 +40,7 @@ app = FastAPI(
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    rate_limiter = RateLimiter(requests_per_minute=10)
+    rate_limiter = RateLimiter(requests_per_minute=90)
     await rate_limiter(request)
     response = await call_next(request)
     return response
