@@ -4,7 +4,6 @@ import sys
 # Add the project's root directory to the PYTHONPATH
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-
 import redis
 from rq import Queue
 from rq.registry import StartedJobRegistry
@@ -27,7 +26,7 @@ if started_job_ids:
 else:
     print("No active jobs.")
 
-# get the queued jobs.
+# Get the queued jobs
 queued_jobs = queue.get_job_ids()
 
 if queued_jobs:
@@ -40,3 +39,9 @@ if queued_jobs:
             print(f"Job id: {job_id} not found")
 else:
     print("No queued jobs.")
+
+# Count registered users
+registered_users = redis_conn.keys("device:*")
+num_users = len(registered_users)
+
+print(f"\nRegistered Users: {num_users}")

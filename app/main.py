@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.settings import CORS_ORIGINS
 from app.api.endpoints import summarize
+from app.api.endpoints import auth
 from app.utils.temp_manager import setup_periodic_cleanup, startup_cleanup
+from app.utils.rate_limiter import RateLimiter
 import redis
 from rq import Queue
 
@@ -35,6 +37,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    rate_limiter = RateLimiter(requests_per_minute=10)
+    await rate_limiter(request)
+    response = await call_next(request)
+    return response
+
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -46,6 +57,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(summarize.router, tags=["summarization"])
+app.include_router(auth.router, tags=["authentication"])
 
 
 # Health check endpoint
@@ -53,3 +65,8 @@ app.include_router(summarize.router, tags=["summarization"])
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
+
+
+# Store Redis connection in app state
+app.state.redis_conn = redis_conn
+app.state.redis_queue = queue

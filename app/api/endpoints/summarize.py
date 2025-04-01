@@ -7,6 +7,7 @@ from app.services.summarization.text import generate_text_summary
 from app.services.summarization.image import generate_image_summary
 from app.services.summarization.pdf import summarize_pdf
 from app.services.summarization.audio import summarize_audio
+from app.api.endpoints.auth import authenticate
 from rq import Queue, job
 import redis
 
@@ -49,6 +50,7 @@ async def summarize_file(
     file_type: FileType = Form(...),
     file_name: str = Form(...),
     target_language: str = Form("en"),
+    device_id: str = Depends(authenticate),
 ):
     """Universal endpoint for submitting files for summarization."""
     file_path = await save_upload_file(file, file_name)
@@ -60,7 +62,9 @@ async def summarize_file(
 
 
 @router.get("/result/{job_id}", response_model=JobStatusResponse)
-async def get_job_result(request: Request, job_id: str):
+async def get_job_result(
+    request: Request, job_id: str, device_id: str = Depends(authenticate)
+):
     """Endpoint to retrieve the result of a summarization job."""
     queue: Queue = request.app.state.redis_queue
     job = queue.fetch_job(job_id)
@@ -88,7 +92,10 @@ async def get_job_result(request: Request, job_id: str):
 
 @router.post("/summarize/text", response_model=SummaryResponse)
 async def summarize_text(
-    request: Request, text: str = Form(...), target_language: str = Form("en")
+    request: Request,
+    text: str = Form(...),
+    target_language: str = Form("en"),
+    device_id: str = Depends(authenticate),
 ):
     """Summarize directly provided text via queue."""
     queue: Queue = request.app.state.redis_queue
