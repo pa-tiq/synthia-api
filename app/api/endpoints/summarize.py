@@ -15,22 +15,24 @@ router = APIRouter()
 
 
 def process_summarization(
-    file_path: str, file_type: FileType, file_name: str, target_language: str
+    file_path: str, file_type: FileType, file_name: str, file_language: str
 ):
     """Function to be executed by RQ worker."""
-    logger.info(f"Processing file: {file_name}, type: {file_type}")
+    logger.info(
+        f"Processing file: {file_name}, type: {file_type}, target language: {file_language}"
+    )
     try:
         summary = ""
         if file_type == FileType.PDF:
-            summary = summarize_pdf(file_path, target_language)
+            summary = summarize_pdf(file_path, file_language)
         elif file_type == FileType.AUDIO:
-            summary = summarize_audio(file_path, target_language)
+            summary = summarize_audio(file_path, file_language)
         elif file_type == FileType.IMAGE:
-            summary = generate_image_summary(file_path, target_language)
+            summary = generate_image_summary(file_path, file_language)
         elif file_type == FileType.TEXT:
             with open(file_path, "r") as text_file:
                 text = text_file.read()
-            summary = generate_text_summary(text, target_language)
+            summary = generate_text_summary(text, file_language)
         else:
             raise ValueError(f"Unsupported file type: {file_type}")
         return SummaryResponse(
@@ -94,10 +96,10 @@ async def get_job_result(
 async def summarize_text(
     request: Request,
     text: str = Form(...),
-    target_language: str = Form("en"),
+    source_language: str = Form("en"),
     device_id: str = Depends(authenticate),
 ):
     """Summarize directly provided text via queue."""
     queue: Queue = request.app.state.redis_queue
-    job = queue.enqueue(generate_text_summary, text, target_language)
+    job = queue.enqueue(generate_text_summary, text, source_language)
     return {"job_id": job.id}

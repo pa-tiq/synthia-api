@@ -4,13 +4,13 @@ from app.services.ai_client import OllamaClient
 from app.services.translation import translate_pt_to_en, translate_en_to_pt
 
 
-def generate_text_summary(text: str, target_language: str = "en") -> str:
+def generate_text_summary(text: str, source_language: str = "en") -> str:
     """
     Generate a summary using the text model with translation support.
 
     Args:
         text: The text to summarize
-        target_language: The target language code ('en' for English, 'pt' for Portuguese)
+        target_language: The source language code ('en' for English, 'pt' for Portuguese)
 
     Returns:
         A summary in the target language
@@ -18,7 +18,7 @@ def generate_text_summary(text: str, target_language: str = "en") -> str:
     try:
         # Step 1: If target language is Portuguese, translate to English first
         input_text = text
-        needs_translation = target_language.lower() == "pt"
+        needs_translation = source_language.lower() != "en"
         # needs_translation = False
 
         if needs_translation:
